@@ -1,14 +1,26 @@
 # SW-CRTs
-Power Calculation for Cross-Sectional Stepped-Wedge Cluster Randomized Trials with Binary Outcomes (https://biostats.bepress.com/harvardbiostat/paper227/)
+Power Calculation for GEE Analyses of Cross-Sectional Stepped-Wedge Cluster Randomized Trials with Binary Outcomes 
 
 The provided R software comprises of:
 
-illustrative_example.Rmd  — R markdown program to re-create the results for the illustrative example
+power_estimation.Rmd  — R markdown program to implement the proposed power calculation methods
 
-illustrative_example.pdf — Output from the R markdown program to re-create the results for the illustrative example
+power_estimation.pdf — Output from the R markdown program to implement the proposed power calculation methods
 
-exp_decay.Rmd — R markdown program implementing a GEE with an exponential decay correlation structure
+simulations_exch.Rmd — R markdown program to re-create a simulation for the exchangeable structure
 
-exp_decay.pdf — Output from the R markdown program implementing a GEE with an exponential decay correlation structure
+simulations_exch.pdf — Output from the R markdown program to re-create a simulation for the exchangeable structure
 
-FUNCTIONS.R — R functions used in the two R markdown programs
+simulations_nested_exch.Rmd — R markdown program to re-create a simulation for the nested exchangeable structure
+
+simulations_nested_exch.pdf — Output from the R markdown program to re-create a simulation for the nested exchangeable structure
+
+simulations_exp_decay.Rmd — R markdown program to re-create a simulation for the exponential decay structure
+
+simulations_exp_decay.pdf — Output from the R markdown program to re-create a simulation for the exponential decay structure
+
+simulations_het.Rmd — R markdown program to re-create a simulation for the heterogeneous treatment structure
+
+simulations_het.pdf — Output from the R markdown program to re-create a simulation for the heterogeneous treatment structure
+
+FUNCTIONS.R — R functions used in the R markdown programs
