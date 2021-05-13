@@ -1,0 +1,86 @@
+---
+title: "R code to re-create a simulation for the heterogeneous treatment structure with equal cluster sizes"
+output: pdf_document
+geometry: "left=1.2cm,right=1.2cm,top=1.2cm,bottom=1.2cm"
+---
+
+```{r}
+# Packages and source programs
+library(geepack)
+source('FUNCTIONS.R')
+
+# Design
+I <- 20        # number of clusters
+n <- 30        # number of participants per cluster per period
+T <- 5         # number of time periods
+q <- I/(T-1)   # number of clusters randomized at each step
+sig <- 0.05    # significance level
+p0 <- 0.3      # baseline prevalence under control
+beta <- c(log(p0/(1-p0)),-0.87,-0.89,-0.91,-0.93) # gently decreasing time-effect 
+theta <- 0.4592 # intervention effect on the log odds ratio scale
+rho1 <- 0.05   # inter-cluster correlation (control, control)
+rho2 <- 0.04   # inter-cluster correlation (control, treatment)
+rho3 <- 0.074  # inter-cluster correlation (treatment, treatment)
+trtSeq <- matrix(0,T-1,T) 
+trtSeq[upper.tri(trtSeq)] <- 1  # treatment sequences
+
+# Simulate data 
+set.seed(20210513)
+B <- create.B.het(I,T,q,beta,theta,trtSeq,n,rho1,rho2,rho3) # Create b's as in Qaqish equation 3
+y <- create.response(I,T,q,beta,theta,trtSeq,n,B) # Simulate binary outcomes (Qaqish equation 3)
+
+# Fit the model with the true correlation structure
+# user defined correlation structure
+gh <- NULL
+for (i in 2:(n*T)){
+  fh <- cbind(rep(i-1,length(i:(n*T))),i:(n*T))
+  gh <- rbind(gh,fh) 
+}
+cor_p <- NULL
+for (t in 2:T) {
+  cor <- matrix(NA,nrow=n*T*(n*T-1)/2,ncol=3)
+  cor[,1] <- gh[,2]<=(t-1)*n
+  cor[,2] <- gh[,1]<=(t-1)*n & gh[,2]>(t-1)*n
+  cor[,3] <- gh[,1]>(t-1)*n
+  cori <- matrix(rep(t(cor), q), ncol=ncol(cor), byrow=TRUE)
+  cor_p <- rbind(cor_p,cori)
+}
+cluster <- rep(1:I,each=T*n)
+period <- rep(rep(1:T,each=n),I)
+X.ij <- kronecker(trtSeq,rep(1,q))
+treatment <- rep(c(t(X.ij)),each=n)
+simdata_bin <- data.frame(cbind(y,cluster,period,treatment))
+fit_pack <- geeglm(y~treatment+factor(period),id=cluster,data=simdata_bin, 
+                       family=binomial(link = "logit"), scale.fix=TRUE, corstr="userdefined",zcor=cor_p)
+summary(fit_pack)  # mean model, sandwich SEs and correlations
+sqrt(fit_pack$geese$vbeta.naiv[2,2]) # model-based SE for the treatment effect
+# Get Mancl DeRouen sandwich variance
+alpha1 <- summary(fit_pack)$corr[1,1]
+alpha2 <- summary(fit_pack)$corr[2,1]
+alpha3 <- summary(fit_pack)$corr[3,1]
+md_var <- md.var.het(fit_pack,simdata_bin,alpha1,alpha2,alpha3,n,T,q,trtSeq)
+sqrt(md_var) # Mancl DeRouen sandwich SE for the treatment effect 
+
+# Fit the model with the working exchangeable correlation structure 
+fit_exch <- geeglm(y~treatment+factor(period),id=cluster,data=simdata_bin,
+                 family=binomial(link = "logit"), scale.fix=TRUE, corstr="exchangeable")
+summary(fit_exch)  # mean model, sandwich SEs and correlation
+sqrt(fit_exch$geese$vbeta.naiv[2,2]) # model-based SE for the treatment effect
+# Get Mancl DeRouen sandwich variance
+alpha <- summary(fit_exch)$corr[1,1]
+var <- (1-alpha)*diag(n*T) + alpha*matrix(1,nrow=n*T,ncol=n*T) 
+md_var <- md.var(fit_exch,simdata_bin,var)
+sqrt(md_var) # Mancl DeRouen sandwich SE for the treatment effect 
+ 
+# Fit the model with the working independence correlation structure 
+fit_indep <- geeglm(y~treatment+factor(period),id=cluster,data=simdata_bin,
+                 family=binomial(link = "logit"), scale.fix=TRUE, corstr="independence")
+summary(fit_indep) # mean model and sandwich SEs 
+sqrt(fit_indep$geese$vbeta.naiv[2,2]) # model-based SE for the treatment effect
+# Get Mancl DeRouen sandwich variance
+var <- diag(n*T)
+md_var <- md.var(fit_indep,simdata_bin,var)
+sqrt(md_var) # Mancl DeRouen sandwich SE for the treatment effect 
+```
+
+
