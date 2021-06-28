@@ -1,5 +1,5 @@
 # SW-CRTs
-Power Calculation for GEE Analyses of Cross-Sectional Stepped-Wedge Cluster Randomized Trials with Binary Outcomes 
+Power Calculation for Analyses of Cross-Sectional Stepped-Wedge Cluster Randomized Trials with Binary Outcomes via Generalized Estimating Equations 
 
 The provided R software comprises of:
 
