@@ -1,14 +1,18 @@
 # SW-CRTs
-Power Calculation for Cross-Sectional Stepped-Wedge Cluster Randomized Trials with Binary Outcomes (https://biostats.bepress.com/harvardbiostat/paper227/)
+Power calculation for analyses of cross-sectional stepped-wedge cluster randomized trials with binary outcomes via generalized estimating equations 
 
 The provided R software comprises of:
 
-illustrative_example.Rmd  — R markdown program to re-create the results for the illustrative example
+power_estimation.Rmd  — R markdown program to implement the proposed power calculation methods
+power_estimation.pdf — Output from the R markdown program to implement the proposed power calculation methods
 
-illustrative_example.pdf — Output from the R markdown program to re-create the results for the illustrative example
+simulations_exch.Rmd — R markdown program to re-create a simulation for the exchangeable structure
+simulations_exch.pdf — Output from the R markdown program to re-create a simulation for the exchangeable structure
+simulations_nested_exch.Rmd — R markdown program to re-create a simulation for the nested exchangeable structure
+simulations_nested_exch.pdf — Output from the R markdown program to re-create a simulation for the nested exchangeable structure
+simulations_exp_decay.Rmd — R markdown program to re-create a simulation for the exponential decay structure
+simulations_exp_decay.pdf — Output from the R markdown program to re-create a simulation for the exponential decay structure
+simulations_het.Rmd — R markdown program to re-create a simulation for the heterogeneous treatment structure
+simulations_het.pdf — Output from the R markdown program to re-create a simulation for the heterogeneous treatment structure
 
-exp_decay.Rmd — R markdown program implementing a GEE with an exponential decay correlation structure
-
-exp_decay.pdf — Output from the R markdown program implementing a GEE with an exponential decay correlation structure
-
-FUNCTIONS.R — R functions used in the two R markdown programs
+FUNCTIONS.R — R functions used in the R markdown programs
