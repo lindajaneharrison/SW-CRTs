@@ -1,5 +1,5 @@
 
-## FUNCTIONS FOR THE ILLUSTRATIVE EXAMPLE
+## FUNCTIONS TO IMPLEMENT THE POWER CACULATION METHOD
 
 var.logistic <- function(I,T,q,beta,theta,trtSeq,n,invR,Z_part)
 {
@@ -65,7 +65,7 @@ var.logistic.vary <- function(I,T,q,beta,theta,S.ij,n,rho)
   return(var_logistic)
 }
 
-## FUNCTIONS TO SIMULATE DATA WITH THE EXPONENTIAL DECAY CORRELATION STRUCTURE
+## FUNCTIONS TO SIMULATE DATA
 # Reference: 
 # Qaqish, B. F. (2003). A family of multivariate binary distributions for simulating correlated
 # binary variables with specified marginal means and correlations. Biometrika 90, 455–463.
@@ -84,6 +84,32 @@ create.B <- function(I,T,q,beta,theta,trtSeq,n,R)
       gf <- v[1:f1,1:f1]
       sf <- v[1:f1,f]
       bf <- solve(gf,sf)  # b as defined in Qaqish equation 3
+      b[1:f1,f] <- bf
+    }
+    B <- cbind(B,b)
+  }
+  return(B)
+}
+
+create.B.het <- function(I,T,q,beta,theta,trtSeq,n,rho1,rho2,rho3)
+{
+  B <- NULL
+  for (i in 1:(I/q)) {
+    u_c <- c(plogis(beta+theta*trtSeq[i,]))
+    u <- rep(u_c,each=n)
+    A_half <- diag(sqrt(u*(1-u)))
+    R <- (1-rho1)*diag(n*T) + 
+      (rho1-rho2)*kronecker((1-trtSeq[i,]) %*% t(1-trtSeq[i,]),matrix(1,n,n)) + 
+      rho2*matrix(1,n*T,n*T) +
+      (rho3-rho2)*kronecker(trtSeq[i,] %*% t(trtSeq[i,]),matrix(1,n,n)) + 
+      (rho1-rho3)*diag(kronecker(trtSeq[i,],rep(1,n)))   # correlation matrix
+    v <- A_half %*% R %*% A_half      # covariance matrix
+    b <- v
+    for (f in 2:(n*T)) {              # prepare coeffs
+      f1 <- f-1
+      gf <- v[1:f1,1:f1]
+      sf <- v[1:f1,f]
+      bf <- solve(gf,sf)
       b[1:f1,f] <- bf
     }
     B <- cbind(B,b)
@@ -332,4 +358,93 @@ SCOREALPHA<-function(beta, alpha, y, X, clsize, clpersize, T, g){
     ok <- (sum(inrange) == n_star)
   }
   return(list(U=U,Ustar=Ustar,ok=ok))
+}
+
+## FUNCTIONS TO CALCULATE THE BIAS-CORRECTED MANCL DEROUEN SANDWICH VARIANCE
+# Reference:
+# Mancl, L. A. and DeRouen, T. A. (2001). A covariance estimator for GEE with improved small-sample 
+# properties. Biometrics 57, 126–134.
+
+md.var <- function(fit_pack,simdata_bin,var)
+{
+  beta_est <- fit_pack$coefficient
+  m <- model.frame(y~treatment+factor(period), simdata_bin)
+  mat <- as.data.frame(model.matrix(y~treatment+factor(period), m))
+  mat$subj <- simdata_bin$cluster
+  step11 <- matrix(0, nrow=length(beta_est), ncol=length(beta_est))
+  step12 <- matrix(0, nrow=length(beta_est), ncol=length(beta_est))
+  for (i in 1:I) {
+    y <- as.matrix(simdata_bin$y[simdata_bin$cluster == unique(simdata_bin$cluster)[i]])
+    covariate <- as.matrix(subset(mat[, -length(mat[1, ])],mat$subj == unique(simdata_bin$cluster)[i]))
+    D <- matrix(0, ncol=ncol(covariate), nrow=nrow(covariate))
+    for (j in 1:ncol(covariate)) {
+      D[, j] <- covariate[,j]*exp(covariate %*% beta_est)/((1 + exp(covariate %*% beta_est))^2)
+    }
+    Vi <- diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T) %*% var %*% 
+      diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)),n*T)
+    xx <- t(D) %*% solve(Vi) %*% D
+    step11 <- step11 + xx
+  }
+  for (i in 1:I) {
+    y <- as.matrix(simdata_bin$y[simdata_bin$cluster == unique(simdata_bin$cluster)[i]])
+    covariate <- as.matrix(subset(mat[, -length(mat[1, ])],mat$subj == unique(simdata_bin$cluster)[i]))
+    D <- matrix(0, ncol=ncol(covariate), nrow=nrow(covariate))
+    for (j in 1:ncol(covariate)) {
+      D[, j] <- covariate[,j]*exp(covariate %*% beta_est)/((1 + exp(covariate %*% beta_est))^2)
+    }
+    Vi <- diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T) %*% var %*% 
+      diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T)
+    xy <- t(D) %*% solve(Vi) %*% solve(diag(n*T) - D %*% solve(step11) %*% t(D) %*% solve(Vi)) %*% 
+      (y - exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est)))
+    step12 <- step12 + xy %*% t(xy)
+  }
+  cov.beta <- solve(step11) %*% (step12) %*% solve(step11)
+  return(cov.beta[2,2]) 
+}
+
+md.var.het <- function(fit_pack,simdata_bin,alpha1,alpha2,alpha3,n,T,q,trtSeq)
+{
+  beta_est <- fit_pack$coefficient
+  m <- model.frame(y~treatment+factor(period), simdata_bin)
+  mat <- as.data.frame(model.matrix(y~treatment+factor(period), m))
+  mat$subj <- simdata_bin$cluster
+  step11 <- matrix(0, nrow=length(beta_est), ncol=length(beta_est))
+  step12 <- matrix(0, nrow=length(beta_est), ncol=length(beta_est))
+  for (i in 1:I) {
+    var <- (1-alpha1)*diag(n*T) + 
+      (alpha1-alpha2)*kronecker((1-trtSeq[ceiling(i/q),]) %*% t(1-trtSeq[ceiling(i/q),]),matrix(1,n,n)) + 
+      alpha2*matrix(1,n*T,n*T) +
+      (alpha3-alpha2)*kronecker(trtSeq[ceiling(i/q),] %*% t(trtSeq[ceiling(i/q),]),matrix(1,n,n)) + 
+      (alpha1-alpha3)*diag(kronecker(trtSeq[ceiling(I/q),],rep(1,n)))   
+    y <- as.matrix(simdata_bin$y[simdata_bin$cluster == unique(simdata_bin$cluster)[i]])
+    covariate <- as.matrix(subset(mat[, -length(mat[1, ])],mat$subj == unique(simdata_bin$cluster)[i]))
+    D <- matrix(0, ncol=ncol(covariate), nrow=nrow(covariate))
+    for (j in 1:ncol(covariate)) {
+      D[, j] <- covariate[,j]*exp(covariate %*% beta_est)/((1 + exp(covariate %*% beta_est))^2)
+    }
+    Vi <- diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T) %*% var %*% 
+      diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)),n*T)
+    xx <- t(D) %*% solve(Vi) %*% D
+    step11 <- step11 + xx
+  }
+  for (i in 1:I) {
+    var <- (1-alpha1)*diag(n*T) + 
+      (alpha1-alpha2)*kronecker((1-trtSeq[ceiling(i/q),]) %*% t(1-trtSeq[ceiling(i/q),]),matrix(1,n,n)) + 
+      alpha2*matrix(1,n*T,n*T) +
+      (alpha3-alpha2)*kronecker(trtSeq[ceiling(i/q),] %*% t(trtSeq[ceiling(i/q),]),matrix(1,n,n)) + 
+      (alpha1-alpha3)*diag(kronecker(trtSeq[ceiling(I/q),],rep(1,n)))   
+    y <- as.matrix(simdata_bin$y[simdata_bin$cluster == unique(simdata_bin$cluster)[i]])
+    covariate <- as.matrix(subset(mat[, -length(mat[1, ])],mat$subj == unique(simdata_bin$cluster)[i]))
+    D <- matrix(0, ncol=ncol(covariate), nrow=nrow(covariate))
+    for (j in 1:ncol(covariate)) {
+      D[, j] <- covariate[,j]*exp(covariate %*% beta_est)/((1 + exp(covariate %*% beta_est))^2)
+    }
+    Vi <- diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T) %*% var %*% 
+      diag(sqrt(c(exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est))^2)), n*T)
+    xy <- t(D) %*% solve(Vi) %*% solve(diag(n*T) - D %*% solve(step11) %*% t(D) %*% solve(Vi)) %*% 
+      (y - exp(covariate %*% beta_est)/(1 + exp(covariate %*% beta_est)))
+    step12 <- step12 + xy %*% t(xy)
+  }
+  cov.beta <- solve(step11) %*% (step12) %*% solve(step11)
+  return(cov.beta[2,2]) 
 }
